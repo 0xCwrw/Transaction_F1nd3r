@@ -28,7 +28,7 @@ Additionally, there is a standalone `TF1nd3r.ps1` that you can execute to load t
 
 ```powershell
 # Load PS1 into session...
-./TF1nd3r.ps1
+Import-Module .\TF1nd3r.ps1
 # Use Check-URL cmdlet directly in PS session.
 Check-URL -Url URL_TO_SCAN.com -TargetDns Domain_To_Find.com
 ```
