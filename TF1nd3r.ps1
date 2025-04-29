@@ -10,7 +10,7 @@ function Check-URL {
         [string]$TargetDns
     )
     # Request body and authentication headers:
-    $api = "...PUT API KEY HERE BOZO..."
+    $api = "... PUT API KEY HERE BOZO ..."
     $headers = @{
         "Content-Type" = "application/json"
         "API-Key" = $api
@@ -29,18 +29,18 @@ function Check-URL {
     # Sleep to allow scan to process on URLScan backend and check every 3 seconds.
     Start-Sleep -Seconds 10
     try {
-    $res_check = Invoke-WebRequest "https://urlscan.io/api/v1/result/$uid/" -ErrorAction SilentlyContinue
+    $res_check = Invoke-WebRequest "https://urlscan.io/api/v1/result/$uid/" -ErrorAction SilentlyContinue -SkipHeaderValidation
     } catch { 
         while ($res_check.StatusCode -ne 200) {
         Write-Host -f Yellow "Scan is not ready yet... Sleeping for five seconds."
         Start-Sleep -Seconds 5
-        $res_check = Invoke-WebRequest "https://urlscan.io/api/v1/result/$uid/" -ErrorAction SilentlyContinue
+        $res_check = Invoke-WebRequest "https://urlscan.io/api/v1/result/$uid/" -ErrorAction SilentlyContinue -SkipHeaderValidation
         }
     }
 
     # Get results from successful scan:
     Write-Host -f Green "[+] $Url scan complete"
-    $get_results = Invoke-RestMethod -Uri "https://urlscan.io/api/v1/result/$uid/" -ContentType application/json -Headers @{Authorization="API-KEY: $api"}
+    $get_results = Invoke-RestMethod -Uri "https://urlscan.io/api/v1/result/$uid/" -ContentType application/json -Headers @{Authorization="API-KEY: $api"} -SkipHeaderValidation
     $transactions = $get_results.lists.urls
 
     # Check if TargetDns is present, null was throwing some bs so go for length check instead:
