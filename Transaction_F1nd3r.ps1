@@ -8,7 +8,7 @@
 
 function Check-URL {
     param(
-        [string]$Url,
+        [Parameter(Mandatory=$true)][string]$Url,
         [string]$TargetDns
     )
     # Request body and authentication headers:
@@ -60,7 +60,6 @@ function Check-URL {
 }
 
 # Get input from user
-
 $input_domains = Read-Host "Please enter the domains you wish to scan (comma separated)"
 $splitDomains = $input_domains -split ',' | ForEach-Object -Process { $_.Trim() }
 
@@ -75,7 +74,10 @@ try {
 }
 
 foreach ($Url in $splitDomains){
-    Check-URL -Url $Url -TargetDns $TargetDns
+    try { Check-URL -Url $Url -TargetDns $TargetDns
+    } catch {
+        Write-Host -f Red "[-] Please supply valid domains/URLs to scan."
+    }
 }
 
 Stop-Transcript
