@@ -4,25 +4,23 @@
     Date: 23 April 2025
 #>
 
-# URL check function:
-
 function Check-URL {
     param(
-        [Parameter(Mandatory=$true)][string]$Url,
+        [string]$Url,
         [string]$TargetDns
     )
     # Request body and authentication headers:
-    $api = "...PUT API KEY HERE BOZO..."
+    $api = "... PUT API KEY HERE BOZO ..."
+    if ($api -eq "... PUT API KEY HERE BOZO ..."){Write-Host -f Red "Please enter valid API key...`nC'mon you're better than this."; exit}
     $headers = @{
         "Content-Type" = "application/json"
         "API-Key" = $api
     }
-
     $body = @{
         url = "$Url"
         visibility = "public"
     } | ConvertTo-Json
-    
+
     # Submit the scan to URLScan.io.
     Write-Host -f Magenta "`nChecking HTTP transactions for $Url"
     $scan_results = Invoke-RestMethod -Uri "https://urlscan.io/api/v1/scan/" -Headers $headers -Body $body -Method Post
@@ -30,36 +28,40 @@ function Check-URL {
 
     # Sleep to allow scan to process on URLScan backend and check every 3 seconds.
     Start-Sleep -Seconds 10
-    try {
-    $res_check = Invoke-WebRequest "https://urlscan.io/api/v1/result/$uid/" -ErrorAction SilentlyContinue
-    } catch { 
-        while ($res_check.StatusCode -ne 200) {
-        Write-Host -f Yellow "Scan is not ready yet... Sleeping for five seconds."
-        Start-Sleep -Seconds 5
-        $res_check = Invoke-WebRequest "https://urlscan.io/api/v1/result/$uid/" -ErrorAction SilentlyContinue
-        }
+    $res_check = Invoke-WebRequest "https://urlscan.io/api/v1/result/$uid/" -ErrorAction SilentlyContinue -SkipHeaderValidation
+    if ($res_check.StatusCode -eq 200) { } else 
+    {
+        $attempts = 0
+        do {
+            Write-Host -f Yellow "Scan is not ready yet... Sleeping for five seconds."
+            Start-Sleep -Seconds 5
+            $res_check = Invoke-WebRequest "https://urlscan.io/api/v1/result/$uid/" -ErrorAction SilentlyContinue -SkipHeaderValidation
+            $attempts++
+        } until (( $res_check.StatusCode -eq 200 ) -or ($attempts -ge 5 ))
     }
 
     # Get results from successful scan:
     Write-Host -f Green "[+] $Url scan complete"
-    $get_results = Invoke-RestMethod -Uri "https://urlscan.io/api/v1/result/$uid/" -ContentType application/json -Headers @{Authorization="API-KEY: $api"}
+    $get_results = Invoke-RestMethod -Uri "https://urlscan.io/api/v1/result/$uid/" -ContentType application/json -Headers @{Authorization="API-KEY: $api"} -SkipHeaderValidation
+    
+    # Put the transactions list into the transactions variable.
     $transactions = $get_results.lists.urls
 
     # Check if TargetDns is present, null was throwing some bs so go for length check instead:
     if ($TargetDns.Length -ge 3 -and $transactions -like "*$TargetDns*"){
-        Write-Host -f Green "[+] Target DNS transaction found in $Url.`n"
-        $Url
+        Write-Host -f Green "[+] Target DNS transaction found in $Url."
+        Write-Host -f Green "--------------- MATCHING TRANSACTIONS --------------" 
         $transactions -like "*$TargetDns*"
+        Write-Host -f Green "----------------------------------------------------"
         return
-       } else {
-        Write-Host -f Yellow "No target domain found, returning all values."
-		Write-Host "--------------- $Url TRANSACTIONS--------------"
-		$transactions   
-		Write-Host "-----------------------------------------------"
+    } else {
+        Write-Host -f Yellow "[-] No target domain found in $Url."
+        Write-Output $transactions
     }
 }
-
+$Check=${function:Check-URL}.ToString()
 # Get input from user
+
 $input_domains = Read-Host "Please enter the domains you wish to scan (comma separated)"
 $splitDomains = $input_domains -split ',' | ForEach-Object -Process { $_.Trim() }
 
@@ -73,10 +75,25 @@ try {
     Start-Transcript -Force -Path "$HOME\Desktop\Transaction_F1nd3r.txt"
 }
 
-foreach ($Url in $splitDomains){
-    try { Check-URL -Url $Url -TargetDns $TargetDns
-    } catch {
-        Write-Host -f Red "[-] Please supply valid domains/URLs to scan."
+# Try parallel job.
+try {
+    Write-Host -f Yellow "Attempting to run this job in parallel (10/s), likely successful unless you see a different error message."
+    $splitDomains | ForEach-Object -Parallel {
+        ${function:Check-URL} = $using:Check
+        try {
+            Check-URL -Url $_ -TargetDns $using:TargetDns
+        } catch {
+            Write-Host -f Red "[-] Please supply valid domains/URLs to scan."
+        }
+    } -ThrottleLimit 10 
+# If parallel job fails, then do:
+} catch {
+    write-Host -f Yellow "Aysnc failed... sry gang.`n This will still work but doesn't scale well for lots of urls."
+    foreach ($Url in $splitDomains){
+        try { Check-URL -Url $Url -TargetDns $TargetDns
+        } catch {
+            Write-Host -f Red "[-] Please supply valid domains/URLs to scan."
+        }
     }
 }
 
